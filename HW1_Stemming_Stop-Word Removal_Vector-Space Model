@@ -1,0 +1,90 @@
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+from nltk.tokenize import word_tokenize
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
+nltk.download('punkt')
+nltk.download('stopwords')
+
+#Preprocess the sentence by optionally removing stop words and/or applying stemming.
+
+def preprocess_text(sentence, to_stem=False, to_remove_stop_words=False):
+   
+    # Tokenize the sentence
+    tokens = word_tokenize(sentence.lower())  # Lowercasing for normalization
+    processed_tokens = tokens
+
+    # Remove stop words
+    if to_remove_stop_words:
+        stop_words = set(stopwords.words('english'))
+        processed_tokens = [token for token in processed_tokens if token not in stop_words]
+
+    # Apply stemming
+    if to_stem:
+        stemmer = PorterStemmer()
+        processed_tokens = [stemmer.stem(token) for token in processed_tokens]
+
+    return ' '.join(processed_tokens)
+
+#Encode the text into a vector based on the specified encoding type.
+def encode_text(text, to_stem=False, to_remove_stop_words=False, encoding_type='one-hot'):
+    preprocessed_text = preprocess_text(text, to_stem, to_remove_stop_words)
+    vectorizer = None
+
+    if encoding_type == 'one-hot':
+        vectorizer = CountVectorizer(binary=True)
+    elif encoding_type == 'bag of words':
+        vectorizer = CountVectorizer(binary=False)
+    elif encoding_type == 'tf':
+        vectorizer = CountVectorizer(binary=False)
+    elif encoding_type == 'tfXidf':
+        vectorizer = TfidfVectorizer()
+
+    vector = vectorizer.fit_transform([preprocessed_text]).toarray()
+    return vector
+
+#Compare two sentences based on cosine similarity after encoding them as vectors with the same dimension.
+def compare_sentences(sentence1, sentence2, to_stem=False, to_remove_stop_words=False, encoding_type='one-hot'):
+    # Preprocess both sentences
+    preprocessed_text1 = preprocess_text(sentence1, to_stem, to_remove_stop_words)
+    preprocessed_text2 = preprocess_text(sentence2, to_stem, to_remove_stop_words)
+
+    # Initialize the appropriate vectorizer
+    if encoding_type == 'one-hot':
+        vectorizer = CountVectorizer(binary=True)
+    elif encoding_type == 'bag of words':
+        vectorizer = CountVectorizer(binary=False)
+    elif encoding_type == 'tf':
+        vectorizer = CountVectorizer(binary=False)  # For simplicity, treated the same as bag of words here
+    elif encoding_type == 'tfXidf':
+        vectorizer = TfidfVectorizer()
+
+    # Fit the vectorizer on both sentences to ensure the same feature space
+    vectorizer.fit([preprocessed_text1, preprocessed_text2])
+    
+    # Transform each sentence into its vector representation
+    vector1 = vectorizer.transform([preprocessed_text1]).toarray()
+    vector2 = vectorizer.transform([preprocessed_text2]).toarray()
+
+    # Calculate and return the cosine similarity
+    similarity = cosine_similarity(vector1, vector2)
+    return similarity[0][0]
+
+
+
+sentence_pairs = [
+    ("The boy played with a ball.", "A child played with a toy."),  # For stop-word removal increases recall
+    ("She went to the park to play.", "She went to the school to study."),  # For stop-word removal decreases precision
+    ("The cats were chasing the mice.", "A cat chased a mouse."),  # For stemming increases recall
+    ("He was running fast in the competition.", "He ran faster than his competitor."),  # For stemming decreases precision
+]
+
+
+for encoding_type in ['one-hot', 'bag of words', 'tf', 'tfXidf']:
+    print(f"\nEncoding Type: {encoding_type}")
+    for i, (s1, s2) in enumerate(sentence_pairs, 1):
+        similarity = compare_sentences(s1, s2, to_stem=False, to_remove_stop_words=False, encoding_type=encoding_type)
+        print(f"Pair {i} Similarity: {similarity}")
